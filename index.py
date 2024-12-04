@@ -1,6 +1,7 @@
 import os
 import json
 from typing import Dict, List, Any, Callable
+import glob
 
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import AIMessage, HumanMessage
@@ -8,17 +9,15 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langgraph.graph import StateGraph, END
 from tavily import TavilyClient
-import os
-import json
-from typing import Dict, List, Any, Callable
-
-from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.pydantic_v1 import BaseModel, Field
-from langgraph.graph import StateGraph, END
-from tavily import TavilyClient
-
+import torch
+from langchain_community.document_loaders import JSONLoader
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.retrievers.multi_query import MultiQueryRetriever
+from langchain.prompts import PromptTemplate
+from langchain.chains import RetrievalQA
+from langchain.docstore.document import Document
 from openai import OpenAI
 client1 = OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")  # html to json
 model = r"/Users/karthiknamboori/.cache/lm-studio/models/lmstudio-community/llama-3.2-3b-instruct"
@@ -71,6 +70,29 @@ class GraphState(BaseModel):
     result: str = Field(default="")
     retry_count: int = Field(default=0)
 
+def load_json_files(folder_path):
+    """
+    Load all JSON files from a specified folder
+    """
+    json_files = glob.glob(os.path.join(folder_path, '*.json'))
+    all_documents = []
+
+    for file_path in json_files:
+        try:
+            loader = JSONLoader(
+                file_path=file_path,
+                jq_schema='.',
+                text_content=False
+            )
+            documents = loader.load()
+            for doc in documents:
+                doc.metadata['source'] = file_path
+            all_documents.extend(documents)
+            print(f"Loaded documents from {file_path}")
+        except Exception as e:
+            print(f"Error loading {file_path}: {e}")
+
+    return all_documents
 
 # Load pharmaceutical data (you'll need to replace this with your actual JSON data)
 def load_pharmaceutical_data(file_path):
@@ -81,28 +103,49 @@ def load_pharmaceutical_data(file_path):
         print(f"Error loading pharmaceutical data: {e}")
         return {}
 
+def prepare_documents(documents):
+    """Prepare documents by splitting them into chunks"""
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200
+    )
+    split_docs = text_splitter.split_documents(documents)
+    return split_docs
+
+def create_vector_store(documents):
+    """Create vector store for similarity search"""
+    embeddings = HuggingFaceEmbeddings(
+        model_name="all-MiniLM-L6-v2",
+        model_kwargs={'device': 'cuda' if torch.cuda.is_available() else 'cpu'}
+    )
+    vectorstore = FAISS.from_documents(documents, embeddings)
+    return vectorstore
+
 # RAG Node for searching pharmaceutical database
 def pharmaceutical_rag(state: GraphState) -> Dict:
     print("Running Pharmaceutical RAG...")
     
-    # Load your pharmaceutical database (replace with actual path)
-    pharma_data = load_pharmaceutical_data('pharmaceutical_database.json')
-    
-    # Simple search through pharmaceutical data
-    matching_entries = []
-    for entry in pharma_data:
-        if state.query.lower() in json.dumps(entry).lower():
-            matching_entries.append(entry)
-    
-    if matching_entries:
-        context = [json.dumps(entry) for entry in matching_entries]
-        return {
-            "context": context,
-            "result": f"Found {len(matching_entries)} matching entries."
-        }
-    
-    return {"context": [], "result": "No matching entries found in database."}
-
+    try:
+        # Load and prepare documents
+        documents = load_json_files('pharmaceutical_database')  # Update path as needed
+        split_docs = prepare_documents(documents)
+        vectorstore = create_vector_store(split_docs)
+        
+        # Search for relevant documents
+        results = vectorstore.similarity_search(state.query, k=5)
+        
+        if results:
+            context = [doc.page_content for doc in results]
+            return {
+                "context": context,
+                "result": f"Found {len(results)} relevant entries."
+            }
+        
+        return {"context": [], "result": "No matching entries found in database."}
+        
+    except Exception as e:
+        print(f"RAG error: {e}")
+        return {"context": [], "result": "RAG search failed."}
 # Web Search Node using Tavily
 def web_search(state: GraphState) -> Dict:
     print("Performing Web Search...")
@@ -144,21 +187,19 @@ def test_web_search(query):
         print(f"Web search error: {e}")
         return {"context": [], "result": "Web search failed."}
     
-# LLM Node for generating final answer
+# Update generate_answer to use more sophisticated prompt
 def generate_answer(state: GraphState) -> Dict:
     print("Generating Answer...")
     
-    # Combine context and create prompt
     context_str = "\n---\n".join(state.context)
     
-    # Construct a comprehensive prompt
-    full_prompt = f"""You are a helpful pharmaceutical information assistant. 
+    prompt_template = """You are a helpful pharmaceutical information assistant. 
     Use the following context to answer the user's query precisely and accurately.
 
-    Query: {state.query}
+    Query: {query}
 
     Context:
-    {context_str}
+    {context}
 
     Guidelines:
     - Provide a detailed and accurate response based on the context
@@ -168,8 +209,12 @@ def generate_answer(state: GraphState) -> Dict:
 
     Your detailed response:"""
     
+    full_prompt = prompt_template.format(
+        query=state.query,
+        context=context_str
+    )
+    
     try:
-        # Use the get_completion function
         response = get_completion(full_prompt)
         
         return {
@@ -236,15 +281,18 @@ def create_graph():
     # Compile the graph
     return workflow.compile()
 
-app = create_graph()
-queries = [
-"What is the composition and primary use of Paracetamol?",
-"Can I take Ibuprofen if I have a history of stomach ulcers?"
-]
-
-for query in queries:
-    result = app.invoke({"query": query})
-    print(result)
-
-
-print('hi')
+if __name__ == "__main__":
+    app = create_graph()
+    
+    # Test queries
+    queries = [
+        "What is the composition and primary use of Paracetamol?",
+        "Can I take Ibuprofen if I have a history of stomach ulcers?",
+        "Summarize the details of Amoxicillin."
+    ]
+    
+    for query in queries:
+        result = app.invoke({"query": query})
+        print("\n" + "="*50)
+        print("Question:", query)
+        print("\nAnswer:", result['result'])
