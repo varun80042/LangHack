@@ -9,6 +9,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langgraph.graph import StateGraph, END
 from tavily import TavilyClient
+import warnings
+warnings.filterwarnings("ignore")
 import torch
 from langchain_community.document_loaders import JSONLoader
 from langchain_community.vectorstores import FAISS
@@ -103,30 +105,59 @@ def create_vector_store(documents):
 def decide_query_route(state: GraphState) -> Dict:
     print("Deciding Query Route...")
     
-    route_prompt = f"""You are an intelligent router for a pharmaceutical information system. 
-    Respond with ONLY 'ROUTE_RAG' or 'ROUTE_WEB' based on the query:
-
-    Query: {state.query}
-
-    Guidelines:
-    - Choose 'ROUTE_RAG' if the query can be fully answered using the existing pharmaceutical database
-    - Choose 'ROUTE_WEB' if additional web search is required
-    
-    Your strict response (ROUTE_RAG/ROUTE_WEB):"""
-    
     try:
-        route_decision = get_completion(route_prompt).strip()
-        print("decision taken", route_decision)
+        # Load and prepare documents
+        documents = load_json_files('pharmaceutical_database')  # Update path as needed
+        split_docs = prepare_documents(documents)
         
-        # Ensure the route decision is one of the two expected values
-        if route_decision not in ["ROUTE_RAG", "ROUTE_WEB"]:
-            route_decision = "ROUTE_WEB"
-            print("Setting decision as web")
+        # Create vector store
+        embeddings = HuggingFaceEmbeddings(
+            model_name="all-MiniLM-L6-v2",
+            model_kwargs={'device': 'cuda' if torch.cuda.is_available() else 'cpu'}
+        )
+        vectorstore = FAISS.from_documents(split_docs, embeddings)
         
+        # Perform similarity search
+        similarity_results = vectorstore.similarity_search(state.query, k=3)
+        
+        # If relevant context is found
+        if similarity_results:
+            # Prepare context for relevance check
+            context = [doc.page_content for doc in similarity_results]
+            context_str = "\n---\n".join(context)
+            print("Context avail: ", context_str)
+            
+            # Relevance check prompt
+            relevance_prompt = f"""Evaluate if the following context is sufficient to answer the query:
+
+            Query: {state.query}
+
+            Context:
+            {context_str}
+
+            Respond strictly with TRUE or FALSE:"""
+            
+            try:
+                relevance_check = get_completion(relevance_prompt).strip()
+                
+                # If context is deemed relevant, route to RAG
+                if relevance_check == "TRUE":
+                    print("Routing to RAG - Relevant context found")
+                    return {
+                        "route_decision": "ROUTE_RAG",
+                        "context": context,  # Pass the relevant context
+                        "retry_count": state.retry_count + 1
+                    }
+            except Exception as relevance_error:
+                print(f"Relevance check error: {relevance_error}")
+        
+        # If no relevant context or relevance check fails
+        print("Insufficient context, routing to web search")
         return {
             "route_decision": "ROUTE_WEB",
             "retry_count": state.retry_count + 1
         }
+    
     except Exception as e:
         print(f"Routing decision error: {e}")
         return {
@@ -170,6 +201,7 @@ def web_search(state: GraphState) -> Dict:
             f"URL: {result['url']}\nContent: {result['content']}"
             for result in response['results']
         ]
+        print("Web search complete, did with: ", len(response['results'])  ," documents")
         
         return {
             "context": context,
@@ -208,6 +240,7 @@ def generate_answer(state: GraphState) -> Dict:
     
     try:
         response = get_completion(full_prompt)
+        print("Generated Answer.")
         
         return {
             "result": response,
@@ -258,9 +291,9 @@ if __name__ == "__main__":
     
     # Test queries
     queries = [
+        "Summarize the details of Amoxicillin.",
         "What is the composition and primary use of Paracetamol?",
         "Can I take Ibuprofen if I have a history of stomach ulcers?",
-        "Summarize the details of Amoxicillin."
     ]
     
     for query in queries:
