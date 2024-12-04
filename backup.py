@@ -144,7 +144,7 @@ def decide_query_route(state: GraphState) -> Dict:
                 if relevance_check == "TRUE":
                     print("Routing to RAG - Relevant context found")
                     return {
-                        "route_decision": "ROUTE_RAG",
+                        "route_decision": "ROUTE_WEB",
                         "context": context,  # Pass the relevant context
                         "retry_count": state.retry_count + 1
                     }
@@ -201,6 +201,7 @@ def web_search(state: GraphState) -> Dict:
             f"URL: {result['url']}\nContent: {result['content']}"
             for result in response['results']
         ]
+        print(context)
         print("Web search complete, did with: ", len(response['results'])  ," documents")
         
         return {
@@ -231,7 +232,9 @@ def generate_answer(state: GraphState) -> Dict:
     - Include relevant details about the pharmaceutical topic
     - Be clear, concise, and informative
 
-    Your detailed response:"""
+
+    
+    """
     
     full_prompt = prompt_template.format(
         query=state.query,
