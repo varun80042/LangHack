@@ -2,13 +2,14 @@ import os
 import json
 
 # Directories
-input_dir = "E:\miscE\ml\LLM_Hackathon\datasets\datasets\microlabs_usa"  # Replace with the folder containing your JSON files
+input_dir = "D:\work\sem 7\Large Language Models\LLM_Hackathon\datasets\microlabs_usa"  # Replace with the folder containing your JSON files
 output_file = "combined_dataset.json"
 
 # Standardized fields
 required_fields = [
-    "product_name", "INGREDIENTS AND APPEARANCE", "dosage", 
-    "contraindications", "side_effects", "warnings"
+    "product_name", "INGREDIENTS AND APPEARANCE", "PACKAGE LABEL.PRINCIPAL DISPLAY PANEL", 
+    "HOW SUPPLIED:", "DOSAGE AND ADMINISTRATION:", "OVERDOSAGE:", "ADVERSE REACTIONS:", "PRECAUTIONS:", "WARNINGS:", "CONTRAINDICATIONS:", "INDICATIONS AND USAGE:", "CLINICAL PHARMACOLOGY:", "DESCRIPTION:",
+    "HIGHLIGHTS OF PRESCRIBING INFORMATION", "Table of Contents", "1 INDICATIONS AND USAGE", "2 DOSAGE AND ADMINISTRATION", "3 DOSAGE FORMS AND STRENGTHS", "4 CONTRAINDICATIONS", "5 WARNINGS AND PRECAUTIONS", "6 ADVERSE REACTIONS", "7 DRUG INTERACTIONS", "8 USE IN SPECIFIC POPULATIONS", "10 OVERDOSAGE", "11 DESCRIPTION", "12 CLINICAL PHARMACOLOGY", "13 NONCLINICAL TOXICOLOGY", "14 CLINICAL STUDIES", "15 REFERENCES", "16 HOW SUPPLIED/STORAGE AND HANDLING", "17 PATIENT COUNSELING INFORMATION", "" 
 ]
 
 def clean_json(file):

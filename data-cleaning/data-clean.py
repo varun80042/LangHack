@@ -42,8 +42,8 @@ def write_cleaned_json(file_path, cleaned_data):
         json.dump(cleaned_data, file, indent=2)
 
 # Example usage
-input_file_path = 'E:\\miscE\\ml\\LLM_Hackathon\\combined_dataset.json'
-output_file_path = 'E:\\miscE\\ml\\LLM_Hackathon\\cleaned_combined_dataset.json'  # Changed output file name to avoid overwriting
+input_file_path = 'D:\work\sem 7\Large Language Models\LLM_Hackathon\combined_dataset.json'
+output_file_path = 'D:\work\sem 7\Large Language Models\LLM_Hackathon\pharmaceutical_database\cleaned_combined_dataset_final.json'  # Changed output file name to avoid overwriting
 cleaned_data = read_and_clean_json(input_file_path)
 write_cleaned_json(output_file_path, cleaned_data)
 
