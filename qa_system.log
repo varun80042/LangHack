@@ -1,0 +1,26 @@
+2024-12-04 13:49:21,336 - INFO - Initializing QA System
+2024-12-04 13:49:21,336 - INFO - Creating workflow graph
+2024-12-04 13:49:21,336 - INFO - Compiling workflow graph
+2024-12-04 13:49:21,337 - INFO - 
+==================================================
+Processing new query: What is the composition and primary use of Paracetamol?
+2024-12-04 13:49:24,614 - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2024-12-04 13:49:44,910 - INFO - Loading faiss.
+2024-12-04 13:49:44,945 - INFO - Successfully loaded faiss.
+2024-12-04 13:49:45,008 - INFO - Routing query...
+2024-12-04 13:49:45,008 - INFO - Valid result found, ending process
+2024-12-04 13:49:45,009 - INFO - Query completed. Source: unknown
+2024-12-04 13:49:45,009 - INFO - 
+==================================================
+Processing new query: Can I take Ibuprofen if I have a history of stomach ulcers?
+2024-12-04 13:49:45,097 - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2024-12-04 13:50:03,760 - INFO - Routing query...
+2024-12-04 13:50:03,761 - INFO - Valid result found, ending process
+2024-12-04 13:50:03,761 - INFO - Query completed. Source: unknown
+2024-12-04 13:50:03,761 - INFO - 
+==================================================
+Processing new query: Summarize the details of Amoxicillin.
+2024-12-04 13:50:03,845 - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2024-12-04 13:50:21,873 - INFO - Routing query...
+2024-12-04 13:50:21,874 - INFO - Valid result found, ending process
+2024-12-04 13:50:21,874 - INFO - Query completed. Source: unknown
